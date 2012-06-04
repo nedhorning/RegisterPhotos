@@ -202,7 +202,7 @@ while (list[i] != "end") {
          xmin = xmin + 1;
       }
    }
-   // Calculate selection rectangle shriking by 5 pixels on a side
+   // Calculate selection rectangle
    makeRectangle(xmin,ymin, xmax - xmin - 1, ymax - ymin - 1);
 
    // Crop images
