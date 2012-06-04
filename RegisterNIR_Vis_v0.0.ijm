@@ -19,8 +19,6 @@ Dialog.addChoice("Create floating point NDVI image?", newArray("yes", "no"));
 Dialog.addChoice("Output clipped visible image?", newArray("yes", "no"));
 Dialog.addChoice("Output image type", newArray("tiff", "jpeg", "gif", "zip", "raw", "avi", "bmp", "fits", "png", "pgm"));
 Dialog.addChoice("Select output color table for color NDVI image", lutList)
-Dialog.addNumber("Enter maximum clipping distance for width (pixels)", 200);
-Dialog.addNumber("Enter maximum clipping distance for height (pixels)", 200);
 Dialog.show();
 createNGR = Dialog.getChoice();
 createNDVIColor  = Dialog.getChoice();
@@ -28,12 +26,12 @@ createNDVIFloat = Dialog.getChoice();
 outputClipVis = Dialog.getChoice();
 fileType = Dialog.getChoice();
 lut = Dialog.getChoice();
-xBuffer = Dialog.getNumber();
-yBuffer = Dialog.getNumber();
 lut = split(lut, ".")
 lut = lut[0]
-// Directory for input/output images
-directory = getDirectory("Choose the image directory");
+// Directory for input images
+inDirectory = getDirectory("Choose the input image directory");
+// Directory for output images
+outDirectory = getDirectory("Choose the output image directory");
 // File open dialog and read the directory information
 path = File.openDialog("Select the file with image names");
 contents = File.openAsString(path)
@@ -47,15 +45,15 @@ while (list[i] != "end") {
    twoImageNames = split(list[i], ",");
    image1 = replace(twoImageNames[0], "\\s*$", "");
    image1 = replace(image1, "^\\s*", "");
-   exists = File.exists(directory+image1);
+   exists = File.exists(inDirectory+image1);
    if (exists != 1) {
-      exit("The filename "+image1+" does not exist in "+directory);
+      exit("The filename "+image1+" does not exist in "+inDirectory);
    }
    image2 = replace(twoImageNames[0], "\\s*$", "");
    image2 = replace(image1, "^\\s*", "");
-   exists = File.exists(directory+image2);
+   exists = File.exists(inDirectory+image2);
    if (exists != 1) {
-      exit("The filename "+image2+" does not exist in "+directory);
+      exit("The filename "+image2+" does not exist in "+inDirectory);
    }
    i = i + 1;
    if (i == list.length) {
@@ -70,12 +68,12 @@ while (list[i] != "end") {
    // Remove leading and trailing spaces
    image1 = replace(twoImageNames[0], "\\s*$", "");
    image1 = replace(image1, "^\\s*", "");
-   open(directory+image1);
+   open(inDirectory+image1);
    sourceImage = getTitle();
    // Remove leading and trailing spaces
    image2 = replace(twoImageNames[1], "\\s*$", "");
    image2 = replace(image2, "^\\s*", "");
-   open(directory+image2);
+   open(inDirectory+image2);
    targetImage = getTitle();
    outFileBase = File.nameWithoutExtension;
    // Get match points using SIFT
@@ -88,8 +86,8 @@ while (list[i] != "end") {
    // Set cropping parameters
    // Convert image to 8-bit
    run("8-bit");
-   // This creates a selection rectangle clipping out much of the no-data boarder
-   run("Select Bounding Box (guess background color)");
+   // This creates a selection rectangle of the entire image
+   run("Select All");
    // Get coordinates from the selection bounding box
    getSelectionBounds(xmin, ymin, width, height);
    // Set variables for clipping
@@ -102,23 +100,6 @@ while (list[i] != "end") {
    bottomHasNoData = true;
    leftHasNoData = true;
    sidesOK = 0;
-   // Check if any of the sides of the selection rectagle correspond with the image sides
-   if (ymin == 0) {
-      topHasNoData = false;
-      sidesOK = sidesOK + 1;
-   }
-   if (xmin == 0) {
-      leftHasNoData = false;
-      sidesOK = sidesOK + 1;
-   }
-   if (ymax == imageHeight - 1) {
-      bottomHasNoData = false;
-      sidesOK = sidesOK + 1;
-   }
-   if (xmax == imageWidth - 1) {
-      rightHasNoData = false;
-      sidesOK = sidesOK + 1;
-   }
    // Loop until all sides of the selection rectangle contain no no-data values
    while (sidesOK < 4) {
       proportionNoData = 0.0;
@@ -210,7 +191,7 @@ while (list[i] != "end") {
    run("Restore Selection");
    run("Crop");
    if (outputClipVis == "yes") {
-      clipTarget = directory+outFileBase+"_clipped."+fileType;
+      clipTarget = outDirectory+outFileBase+"_clipped."+fileType;
       saveAs(fileType, clipTarget);
    }
    targetImage = getTitle();
@@ -228,7 +209,7 @@ while (list[i] != "end") {
       denominator = getImageID();
       imageCalculator("create 32-bit divide", numerator, denominator);
       if (createNDVIFloat == "yes") {      
-         outNDVI_Float = directory+outFileBase+"_NDVI_Float."+fileType;
+         outNDVI_Float = outDirectory+outFileBase+"_NDVI_Float."+fileType;
          // Write floating point NDVI image
          saveAs(fileType, outNDVI_Float);
       }
@@ -237,7 +218,7 @@ while (list[i] != "end") {
          run("Macro...", "code=v=(v+1)*255/2");
          run("8-bit");
          run(lut);
-         outNDVI_Color = directory+outFileBase+"_NDVI_Color."+fileType;
+         outNDVI_Color = outDirectory+outFileBase+"_NDVI_Color."+fileType;
          // Write color NDVI image
          saveAs(fileType, outNDVI_Color);
       }
@@ -246,7 +227,7 @@ while (list[i] != "end") {
    // Create an NGR image
    if (createNGR == "yes") {
       run("Merge Channels...", "red=[Transformed"+sourceImage+" (red)] green=["+targetImage+" (red)] blue=["+targetImage+" (green)] gray=*None*");
-      outNRG = directory+outFileBase+"_NRG."+fileType;
+      outNRG = outDirectory+outFileBase+"_NRG."+fileType;
       // Output NRG image
       saveAs(fileType, outNRG);
    }
