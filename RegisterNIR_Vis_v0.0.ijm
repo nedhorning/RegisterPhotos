@@ -72,6 +72,7 @@ noPoints = false;
 // Start processing image pairs
 i=0;
 while (list[i] != "end") {
+   continue = true;
    twoImageNames = split(list[i], ",");
    // Remove leading and trailing spaces
    image1 = replace(twoImageNames[0], "\\s*$", "");
@@ -98,8 +99,11 @@ while (list[i] != "end") {
       } else if (method == "Try SIFT") {
          noPoints = true;  // no correspondence points created
          print("No points generated for landmark correspondence - trying bUnwarpJ");
-      } else
-         exit("SIFT was not able to create points for image pair "+image1+" and "+image2+" - rerun using Try SIFT option");
+      } else {
+         print(logFile, "SIFT was not able to create points for image pair "+image1+" and "+image2+" - rerun using bUnwarpJ option");
+         print("SIFT was not able to create points for image pair "+image1+" and "+image2+" - rerun using bUnwarpJ option");
+         continue = false;
+      }
    } 
    if (method == "bUnwarpJ" || (method == "Try SIFT" && noPoints)) {
       print("Processing "+image1+" and "+image2+" using bUnwarpJ");
@@ -111,154 +115,155 @@ while (list[i] != "end") {
       run("Duplicate...", "title=Transformed"+sourceImage);
       selectWindow("Registered Source Image");
    }
-
-   // Set cropping parameters
-   // Convert image to 8-bit
-   run("8-bit");
-   // This creates a selection rectangle of the entire image
-   run("Select All");
-   // Get coordinates from the selection bounding box
-   getSelectionBounds(xmin, ymin, width, height);
-   // Set variables for clipping
-   xmax = width + xmin - 1;
-   ymax = height + ymin - 1;
-   imageHeight = getHeight;
-   imageWidth = getWidth();
-   topHasNoData = true;
-   rightHasNoData = true;
-   bottomHasNoData = true;
-   leftHasNoData = true;
-   sidesOK = 0;
-   // Loop until all sides of the selection rectangle contain no no-data values
-   while (sidesOK < 4) {
-      proportionNoData = 0.0;
-      move_xmin = false;
-      move_xmax = false;
-      move_ymin = false;
-      move_ymax = false;
-      moveSide = "";
-      // For each side count the number of no-data pixel in the line or column then calculate percent no-data
-      if (topHasNoData) {
-         numNoData = 0;
-         for (j=xmin+1; j<xmax; j++) {
-            if (getPixel(j, ymin+1) == 0) {
-                numNoData++;
+   if (continue) {
+      // Set cropping parameters
+      // Convert image to 8-bit
+      run("8-bit");
+      // This creates a selection rectangle of the entire image
+      run("Select All");
+      // Get coordinates from the selection bounding box
+      getSelectionBounds(xmin, ymin, width, height);
+      // Set variables for clipping
+      xmax = width + xmin - 1;
+      ymax = height + ymin - 1;
+      imageHeight = getHeight;
+      imageWidth = getWidth();
+      topHasNoData = true;
+      rightHasNoData = true;
+      bottomHasNoData = true;
+      leftHasNoData = true;
+      sidesOK = 0;
+      // Loop until all sides of the selection rectangle contain no no-data values
+      while (sidesOK < 4) {
+         proportionNoData = 0.0;
+         move_xmin = false;
+         move_xmax = false;
+         move_ymin = false;
+         move_ymax = false;
+         moveSide = "";
+         // For each side count the number of no-data pixel in the line or column then calculate percent no-data
+         if (topHasNoData) {
+            numNoData = 0;
+            for (j=xmin+1; j<xmax; j++) {
+               if (getPixel(j, ymin+1) == 0) {
+                   numNoData++;
+               }
+            }
+            if ((numNoData/xmax) > proportionNoData) {
+               proportionNoData = numNoData/xmax;
+               moveSide = "top";
+            } else if (numNoData == 0) {
+              topHasNoData = false;
+              sidesOK = sidesOK + 1;
             }
          }
-         if ((numNoData/xmax) > proportionNoData) {
-            proportionNoData = numNoData/xmax;
-            moveSide = "top";
-         } else if (numNoData == 0) {
-           topHasNoData = false;
-           sidesOK = sidesOK + 1;
-         }
-      }
-      if (rightHasNoData) {
-         numNoData = 0;
-        for (j=ymin+1; j<ymax; j++) {
-            if (getPixel(xmax - 1, j) == 0) {
-                numNoData++;
+         if (rightHasNoData) {
+            numNoData = 0;
+           for (j=ymin+1; j<ymax; j++) {
+               if (getPixel(xmax - 1, j) == 0) {
+                   numNoData++;
+               }
+            }
+            if ((numNoData/xmax) > proportionNoData) {
+               proportionNoData = numNoData/xmax;
+               moveSide = "right";
+            } else if (numNoData == 0) {
+              rightHasNoData = false;
+              sidesOK = sidesOK + 1;
             }
          }
-         if ((numNoData/xmax) > proportionNoData) {
-            proportionNoData = numNoData/xmax;
-            moveSide = "right";
-         } else if (numNoData == 0) {
-           rightHasNoData = false;
-           sidesOK = sidesOK + 1;
-         }
-      }
-      if (bottomHasNoData) {
-         numNoData = 0;
-         for (j=xmin+1; j<xmax; j++) {
-            if (getPixel(j, ymax - 1) == 0) {
-                numNoData++;
+         if (bottomHasNoData) {
+            numNoData = 0;
+            for (j=xmin+1; j<xmax; j++) {
+               if (getPixel(j, ymax - 1) == 0) {
+                   numNoData++;
+               }
+            }
+            if ((numNoData/xmax) > proportionNoData) {
+               proportionNoData = numNoData/xmax;
+               moveSide = "bottom";
+            } else if (numNoData == 0) {
+              bottomHasNoData = false;
+              sidesOK = sidesOK + 1;
             }
          }
-         if ((numNoData/xmax) > proportionNoData) {
-            proportionNoData = numNoData/xmax;
-            moveSide = "bottom";
-         } else if (numNoData == 0) {
-           bottomHasNoData = false;
-           sidesOK = sidesOK + 1;
-         }
-      }
-      if (leftHasNoData) {
-         numNoData = 0;
-         for (j=ymin+1; j<ymax; j++) {
-            if (getPixel(xmin + 1, j) == 0) {
-                numNoData++;
+         if (leftHasNoData) {
+            numNoData = 0;
+            for (j=ymin+1; j<ymax; j++) {
+               if (getPixel(xmin + 1, j) == 0) {
+                   numNoData++;
+               }
+            }
+            if ((numNoData/xmax) > proportionNoData) {
+               proportionNoData = numNoData/xmax;
+               moveSide = "left";
+            } else if (numNoData == 0) {
+              rightHasNoData = false;
+              sidesOK = sidesOK + 1;
             }
          }
-         if ((numNoData/xmax) > proportionNoData) {
-            proportionNoData = numNoData/xmax;
-            moveSide = "left";
-         } else if (numNoData == 0) {
-           rightHasNoData = false;
-           sidesOK = sidesOK + 1;
+         // Move the side that has the highest proportion of no-data pixels
+         if (moveSide == "top") {
+            ymin = ymin + 1;
+         }
+         if (moveSide == "right") {
+            xmax = xmax - 1;
+         }
+         if (moveSide == "bottom") {
+            ymax = ymax - 1;
+         }
+         if (moveSide == "left") {
+            xmin = xmin + 1;
          }
       }
-      // Move the side that has the highest proportion of no-data pixels
-      if (moveSide == "top") {
-         ymin = ymin + 1;
-      }
-      if (moveSide == "right") {
-         xmax = xmax - 1;
-      }
-      if (moveSide == "bottom") {
-         ymax = ymax - 1;
-      }
-      if (moveSide == "left") {
-         xmin = xmin + 1;
-      }
-   }
-   // Calculate selection rectangle
-   makeRectangle(xmin,ymin, xmax - xmin - 1, ymax - ymin - 1);
+      // Calculate selection rectangle
+      makeRectangle(xmin,ymin, xmax - xmin - 1, ymax - ymin - 1);
 
-   // Crop images
-   selectWindow(targetImage);
-   run("Restore Selection");
-   run("Crop");
-   if (outputClipVis == "yes") {
-      clipTarget = outDirectory+outFileBase+"_clipped."+fileType;
-      saveAs(fileType, clipTarget);
-   }
-   targetImage = getTitle();
-   run("Split Channels");
-   selectWindow("Transformed"+sourceImage);
-   run("Restore Selection");
-   run("Crop");
-   run("Split Channels");
-
-   // Calculate NDVI image
-   if (createNDVIColor == "yes" || createNDVIFloat == "yes") {
-      imageCalculator("create 32-bit subtract", "Transformed"+sourceImage+" (red)", targetImage+" (red)");
-      numerator = getImageID();
-      imageCalculator("create 32-bit add", "Transformed"+sourceImage+" (red)", targetImage+" (red)");
-      denominator = getImageID();
-      imageCalculator("create 32-bit divide", numerator, denominator);
-      if (createNDVIFloat == "yes") {      
-         outNDVI_Float = outDirectory+outFileBase+"_NDVI_Float."+fileType;
-         // Write floating point NDVI image
-         saveAs(fileType, outNDVI_Float);
+      // Crop images
+      selectWindow(targetImage);
+      run("Restore Selection");
+      run("Crop");
+      if (outputClipVis == "yes") {
+         clipTarget = outDirectory+outFileBase+"_clipped."+fileType;
+         saveAs(fileType, clipTarget);
       }
-      // Scale from floating point to byte and add a color table
-      if (createNDVIColor == "yes") {
-         run("Macro...", "code=v=(v+1)*255/2");
-         run("8-bit");
-         run(lut);
-         outNDVI_Color = outDirectory+outFileBase+"_NDVI_Color."+fileType;
-         // Write color NDVI image
-         saveAs(fileType, outNDVI_Color);
-      }
-   }
+      targetImage = getTitle();
+      run("Split Channels");
+      selectWindow("Transformed"+sourceImage);
+      run("Restore Selection");
+      run("Crop");
+      run("Split Channels");
 
-   // Create an NGR image
-   if (createNGR == "yes") {
-      run("Merge Channels...", "red=[Transformed"+sourceImage+" (red)] green=["+targetImage+" (red)] blue=["+targetImage+" (green)] gray=*None*");
-      outNRG = outDirectory+outFileBase+"_NRG."+fileType;
-      // Output NRG image
-      saveAs(fileType, outNRG);
+      // Calculate NDVI image
+      if (createNDVIColor == "yes" || createNDVIFloat == "yes") {
+         imageCalculator("create 32-bit subtract", "Transformed"+sourceImage+" (red)", targetImage+" (red)");
+         numerator = getImageID();
+         imageCalculator("create 32-bit add", "Transformed"+sourceImage+" (red)", targetImage+" (red)");
+         denominator = getImageID();
+         imageCalculator("create 32-bit divide", numerator, denominator);
+         if (createNDVIFloat == "yes") {      
+            outNDVI_Float = outDirectory+outFileBase+"_NDVI_Float."+fileType;
+            // Write floating point NDVI image
+            saveAs(fileType, outNDVI_Float);
+         }
+         // Scale from floating point to byte and add a color table
+         if (createNDVIColor == "yes") {
+            run("Macro...", "code=v=(v+1)*255/2");
+            run("8-bit");
+            run(lut);
+            outNDVI_Color = outDirectory+outFileBase+"_NDVI_Color."+fileType;
+            // Write color NDVI image
+            saveAs(fileType, outNDVI_Color);
+         }
+      }
+
+      // Create an NGR image
+      if (createNGR == "yes") {
+         run("Merge Channels...", "red=[Transformed"+sourceImage+" (red)] green=["+targetImage+" (red)] blue=["+targetImage+" (green)] gray=*None*");
+         outNRG = outDirectory+outFileBase+"_NRG."+fileType;
+         // Output NRG image
+         saveAs(fileType, outNRG);
+      }
    }
    run("Close All");
    i = i + 1;
