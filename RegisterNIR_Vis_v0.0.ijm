@@ -8,30 +8,37 @@
 // second image is the visible image (the target image used as a reference but not altered). The last line must 
 // be "end" (not case sensitive and do not include the quotation marks.
 //
+// A log file is created to document which registration method was used for each image pair.
+//
 // Questions and comments can be sent to Ned Horning - horning@amnh.org 
 //
 // Create dialog for entering parameters
 lutList = getFileList(getDirectory("luts"));
 Dialog.create("Processing choices");
+Dialog.addChoice("Select registration method", newArray("SIFT", "bUnwarpJ", "Try SIFT"));
 Dialog.addChoice("Create NGR image?", newArray("yes", "no"));
 Dialog.addChoice("Create Color NDVI image?", newArray("yes", "no"));
 Dialog.addChoice("Create floating point NDVI image?", newArray("yes", "no"));
 Dialog.addChoice("Output clipped visible image?", newArray("yes", "no"));
 Dialog.addChoice("Output image type", newArray("tiff", "jpeg", "gif", "zip", "raw", "avi", "bmp", "fits", "png", "pgm"));
-Dialog.addChoice("Select output color table for color NDVI image", lutList)
+Dialog.addChoice("Select output color table for color NDVI image", lutList);
+Dialog.addString("Enter name for log file", "log.txt");
 Dialog.show();
+method = Dialog.getChoice();
 createNGR = Dialog.getChoice();
 createNDVIColor  = Dialog.getChoice();
 createNDVIFloat = Dialog.getChoice();
 outputClipVis = Dialog.getChoice();
 fileType = Dialog.getChoice();
 lut = Dialog.getChoice();
+logName = Dialog.getString();
 lut = split(lut, ".")
 lut = lut[0]
 // Directory for input images
 inDirectory = getDirectory("Choose the input image directory");
 // Directory for output images
 outDirectory = getDirectory("Choose the output image directory");
+logFile = File.open(outDirectory+logName); 
 // File open dialog and read the directory information
 path = File.openDialog("Select the file with image names");
 contents = File.openAsString(path)
@@ -61,6 +68,7 @@ while (list[i] != "end") {
    }
 }
 
+noPoints = false;
 // Start processing image pairs
 i=0;
 while (list[i] != "end") {
@@ -76,13 +84,34 @@ while (list[i] != "end") {
    open(inDirectory+image2);
    targetImage = getTitle();
    outFileBase = File.nameWithoutExtension;
-   // Get match points using SIFT
-   run("Extract SIFT Correspondences", "source_image="+targetImage+" target_image="+sourceImage+" initial_gaussian_blur=1.60    steps_per_scale_octave=3 minimum_image_size=64 maximum_image_size=1024 feature_descriptor_size=4 feature_descriptor_orientation_bins=8 closest/   next_closest_ratio=0.92 filter maximal_alignment_error=25 minimal_inlier_ratio=0.05 minimal_number_of_inliers=7 expected_transformation=Affine");
-   // Register the images
-   run("Landmark Correspondences", "source_image="+sourceImage+" template_image="+targetImage+" transformation_method=[Moving Least Squares (non-linear)] alpha=1 mesh_resolution=32 transformation_class=Affine interpolate");
-   selectWindow("Transformed"+sourceImage);
-   run("Duplicate...", "title=tempImage.tif");
-   
+   if (method == "SIFT" || method == "Try SIFT") {
+      print("Processing "+image1+" and "+image2+" using SIFT and landmark correspondences"); 
+      // Get match points using SIFT
+      run("Extract SIFT Correspondences", "source_image="+targetImage+" target_image="+sourceImage+" initial_gaussian_blur=1.60    steps_per_scale_octave=3 minimum_image_size=64 maximum_image_size=1024 feature_descriptor_size=4 feature_descriptor_orientation_bins=8 closest/   next_closest_ratio=0.92 filter maximal_alignment_error=25 minimal_inlier_ratio=0.05 minimal_number_of_inliers=7 expected_transformation=Affine");
+      // Register the images
+      if (selectionType() == 10) {
+         noPoints = false;
+         run("Landmark Correspondences", "source_image="+sourceImage+" template_image="+targetImage+" transformation_method=[Moving Least Squares (non-linear)] alpha=1 mesh_resolution=32 transformation_class=Affine interpolate");
+         print(logFile, "Images "+image1+" and "+image2+" registered using SIFT and landmark correspondences");
+         selectWindow("Transformed"+sourceImage);
+         run("Duplicate...", "title=tempImage.tif");
+      } else if (method == "Try SIFT") {
+         noPoints = true;  // no correspondence points created
+         print("No points generated for landmark correspondence - trying bUnwarpJ");
+      } else
+         exit("SIFT was not able to create points for image pair "+image1+" and "+image2+" - rerun using Try SIFT option");
+   } 
+   if (method == "bUnwarpJ" || (method == "Try SIFT" && noPoints)) {
+      print("Processing "+image1+" and "+image2+" using bUnwarpJ");
+      run("bUnwarpJ", "source_image="+sourceImage+" target_image="+targetImage+" registration=Fast image_subsample_factor=0 initial_deformation=[Very Coarse] final_deformation=Fine divergence_weight=0 curl_weight=0 landmark_weight=0 image_weight=1 consistency_weight=10 stop_threshold=0.01");
+      print(logFile, "Images "+image1+" and "+image2+" registered using bUnwarpJ");
+      selectWindow("Registered Source Image");
+      run("Stack to Images");
+      selectWindow("Registered Source Image");
+      run("Duplicate...", "title=Transformed"+sourceImage);
+      selectWindow("Registered Source Image");
+   }
+
    // Set cropping parameters
    // Convert image to 8-bit
    run("8-bit");
