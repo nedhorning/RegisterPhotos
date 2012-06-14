@@ -15,7 +15,7 @@
 // Create dialog for entering parameters
 lutList = getFileList(getDirectory("luts"));
 Dialog.create("Processing choices");
-Dialog.addChoice("Select registration method", newArray("SIFT", "bUnwarpJ", "Try SIFT"));
+Dialog.addChoice("Select registration method", newArray("Try SIFT", "SIFT", "bUnwarpJ"));
 Dialog.addChoice("Create NGR image?", newArray("yes", "no"));
 Dialog.addChoice("Create Color NDVI image?", newArray("yes", "no"));
 Dialog.addChoice("Create floating point NDVI image?", newArray("yes", "no"));
@@ -68,7 +68,6 @@ while (list[i] != "end") {
    }
 }
 
-noPoints = false;
 // Start processing image pairs
 i=0;
 while (list[i] != "end") {
@@ -87,11 +86,21 @@ while (list[i] != "end") {
    outFileBase = File.nameWithoutExtension;
    if (method == "SIFT" || method == "Try SIFT") {
       print("Processing "+image1+" and "+image2+" using SIFT and landmark correspondences"); 
-      // Get match points using SIFT
-      run("Extract SIFT Correspondences", "source_image="+targetImage+" target_image="+sourceImage+" initial_gaussian_blur=1.60    steps_per_scale_octave=3 minimum_image_size=64 maximum_image_size=1024 feature_descriptor_size=4 feature_descriptor_orientation_bins=8 closest/   next_closest_ratio=0.92 filter maximal_alignment_error=25 minimal_inlier_ratio=0.05 minimal_number_of_inliers=7 expected_transformation=Affine");
-      // Register the images
-      if (selectionType() == 10) {
-         noPoints = false;
+      trys = 1;
+      noPoints = true;
+      run("Select None");
+      // Try up to 5 times to get SIFT correspondence points
+      while (trys <= 5 && noPoints) {
+         print("Number of times trying SIFT: "+trys);   
+         // Get match points using SIFT
+         run("Extract SIFT Correspondences", "source_image="+targetImage+" target_image="+sourceImage+" initial_gaussian_blur=1.60    steps_per_scale_octave=3 minimum_image_size=64 maximum_image_size=1024 feature_descriptor_size=4 feature_descriptor_orientation_bins=8 closest/   next_closest_ratio=0.92 filter maximal_alignment_error=25 minimal_inlier_ratio=0.05 minimal_number_of_inliers=7 expected_transformation=Affine");
+         if (selectionType() == 10) {
+            noPoints = false;
+         }
+         trys = trys + 1;
+      }
+         // Register the images
+      if (!noPoints) {
          run("Landmark Correspondences", "source_image="+sourceImage+" template_image="+targetImage+" transformation_method=[Moving Least Squares (non-linear)] alpha=1 mesh_resolution=32 transformation_class=Affine interpolate");
          print(logFile, "Images "+image1+" and "+image2+" registered using SIFT and landmark correspondences");
          selectWindow("Transformed"+sourceImage);
@@ -105,6 +114,7 @@ while (list[i] != "end") {
          continue = false;
       }
    } 
+
    if (method == "bUnwarpJ" || (method == "Try SIFT" && noPoints)) {
       print("Processing "+image1+" and "+image2+" using bUnwarpJ");
       run("bUnwarpJ", "source_image="+sourceImage+" target_image="+targetImage+" registration=Fast image_subsample_factor=0 initial_deformation=[Very Coarse] final_deformation=Fine divergence_weight=0 curl_weight=0 landmark_weight=0 image_weight=1 consistency_weight=10 stop_threshold=0.01");
