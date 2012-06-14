@@ -16,6 +16,7 @@
 lutList = getFileList(getDirectory("luts"));
 Dialog.create("Processing choices");
 Dialog.addChoice("Select registration method", newArray("Try SIFT", "SIFT", "bUnwarpJ"));
+Dialog.addChoice("Select transformation type if using SIFT", newArray("Affine", "Rigid"));
 Dialog.addChoice("Create NGR image?", newArray("yes", "no"));
 Dialog.addChoice("Create Color NDVI image?", newArray("yes", "no"));
 Dialog.addChoice("Create floating point NDVI image?", newArray("yes", "no"));
@@ -25,6 +26,7 @@ Dialog.addChoice("Select output color table for color NDVI image", lutList);
 Dialog.addString("Enter name for log file", "log.txt");
 Dialog.show();
 method = Dialog.getChoice();
+transType = Dialog.getChoice();
 createNGR = Dialog.getChoice();
 createNDVIColor  = Dialog.getChoice();
 createNDVIFloat = Dialog.getChoice();
@@ -93,7 +95,7 @@ while (list[i] != "end") {
       while (trys <= 5 && noPoints) {
          print("Number of times trying SIFT: "+trys);   
          // Get match points using SIFT
-         run("Extract SIFT Correspondences", "source_image="+targetImage+" target_image="+sourceImage+" initial_gaussian_blur=1.60    steps_per_scale_octave=3 minimum_image_size=64 maximum_image_size=1024 feature_descriptor_size=4 feature_descriptor_orientation_bins=8 closest/   next_closest_ratio=0.92 filter maximal_alignment_error=25 minimal_inlier_ratio=0.05 minimal_number_of_inliers=7 expected_transformation=Affine");
+         run("Extract SIFT Correspondences", "source_image="+targetImage+" target_image="+sourceImage+" initial_gaussian_blur=1.60    steps_per_scale_octave=3 minimum_image_size=64 maximum_image_size=1024 feature_descriptor_size=4 feature_descriptor_orientation_bins=8 closest/   next_closest_ratio=0.92 filter maximal_alignment_error=25 minimal_inlier_ratio=0.05 minimal_number_of_inliers=7 expected_transformation="+transType);
          if (selectionType() == 10) {
             noPoints = false;
          }
@@ -101,8 +103,8 @@ while (list[i] != "end") {
       }
          // Register the images
       if (!noPoints) {
-         run("Landmark Correspondences", "source_image="+sourceImage+" template_image="+targetImage+" transformation_method=[Moving Least Squares (non-linear)] alpha=1 mesh_resolution=32 transformation_class=Affine interpolate");
-         print(logFile, "Images "+image1+" and "+image2+" registered using SIFT and landmark correspondences");
+         run("Landmark Correspondences", "source_image="+sourceImage+" template_image="+targetImage+" transformation_method=[Moving Least Squares (non-linear)] alpha=1 mesh_resolution=32 transformation_class="+transType+" interpolate");
+         print(logFile, "Images "+image1+" and "+image2+" registered using SIFT and landmark correspondences and "+transType+" transformation");
          selectWindow("Transformed"+sourceImage);
          run("Duplicate...", "title=tempImage.tif");
       } else if (method == "Try SIFT") {
