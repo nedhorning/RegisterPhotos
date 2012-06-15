@@ -262,6 +262,7 @@ while (list[i] != "end") {
          if (createNDVIColor == "yes") {
             run("Macro...", "code=v=(v+1)*255/2");
             run("8-bit");
+            resetMinAndMax();
             run(lut);
             outNDVI_Color = outDirectory+outFileBase+"_NDVI_Color."+fileType;
             // Write color NDVI image
