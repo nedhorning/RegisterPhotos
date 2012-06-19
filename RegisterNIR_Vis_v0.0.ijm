@@ -16,7 +16,8 @@
 lutList = getFileList(getDirectory("luts"));
 Dialog.create("Processing choices");
 Dialog.addChoice("Select registration method", newArray("Try SIFT", "SIFT", "bUnwarpJ"));
-Dialog.addChoice("Select transformation type if using SIFT", newArray("Affine", "Rigid"));
+Dialog.addChoice("Select transformation type if using SIFT", newArray("Rigid", "Affine"));
+Dialog.addChoice("Method to improve point selection", newArray("target (g-b) source (g+b)", "none"));
 Dialog.addChoice("Create NGR image?", newArray("yes", "no"));
 Dialog.addChoice("Create Color NDVI image?", newArray("yes", "no"));
 Dialog.addChoice("Create floating point NDVI image?", newArray("yes", "no"));
@@ -27,6 +28,7 @@ Dialog.addString("Enter name for log file", "log.txt");
 Dialog.show();
 method = Dialog.getChoice();
 transType = Dialog.getChoice();
+enhanceMethod = Dialog.getChoice();
 createNGR = Dialog.getChoice();
 createNDVIColor  = Dialog.getChoice();
 createNDVIFloat = Dialog.getChoice();
@@ -34,8 +36,8 @@ outputClipVis = Dialog.getChoice();
 fileType = Dialog.getChoice();
 lut = Dialog.getChoice();
 logName = Dialog.getString();
-lut = split(lut, ".")
-lut = lut[0]
+lut = split(lut, ".");
+lut = lut[0];
 // Directory for input images
 inDirectory = getDirectory("Choose the input image directory");
 // Directory for output images
@@ -86,27 +88,76 @@ while (list[i] != "end") {
    open(inDirectory+image2);
    targetImage = getTitle();
    outFileBase = File.nameWithoutExtension;
+   
+   // Split channels and create similar vis/near-ir pair
+   if (enhanceMethod == "target (g-b) source (g+b)") {
+      print("Running subtraction");
+      selectWindow(targetImage);
+      run("Duplicate...", "title=[targetTempImg]");
+      selectWindow("targetTempImg");
+      run("Split Channels");
+      selectWindow(sourceImage);
+      run("Duplicate...", "title=[sourceTempImg]");
+      selectWindow("sourceTempImg");
+      run("Split Channels");
+      imageCalculator("create 32-bit subtract", "targetTempImg (green)", "targetTempImg (blue)");
+      rename("targetRef");
+      imageCalculator("create 32-bit add", "sourceTempImg (green)", "sourceTempImg (blue)");
+      rename("sourceRef");
+      selectWindow("sourceTempImg (red)");
+      close();
+      selectWindow("sourceTempImg (green)");
+      close();
+      selectWindow("sourceTempImg (blue)");
+      close();
+      selectWindow("targetTempImg (red)");
+      close();
+      selectWindow("targetTempImg (green)");
+      close();
+      selectWindow("targetTempImg (blue)");
+      close();
+   } 
+   else if (enhanceMethod == "none") {
+      selectWindow(targetImage);
+      run("Duplicate...", "title=[targetRef]");
+      selectWindow(sourceImage);
+      run("Duplicate...", "title=[sourceRef]");
+   }
+   else print("no match for enhanceMethod");
+     
    if (method == "SIFT" || method == "Try SIFT") {
       print("Processing "+image1+" and "+image2+" using SIFT and landmark correspondences"); 
       trys = 1;
       noPoints = true;
+      selectWindow("targetRef");
+      run("Select None");
+      selectWindow("sourceRef");
       run("Select None");
       // Try up to 5 times to get SIFT correspondence points
       while (trys <= 5 && noPoints) {
          print("Number of times trying SIFT: "+trys);   
          // Get match points using SIFT
-         run("Extract SIFT Correspondences", "source_image="+targetImage+" target_image="+sourceImage+" initial_gaussian_blur=1.60    steps_per_scale_octave=3 minimum_image_size=64 maximum_image_size=1024 feature_descriptor_size=4 feature_descriptor_orientation_bins=8 closest/   next_closest_ratio=0.92 filter maximal_alignment_error=25 minimal_inlier_ratio=0.05 minimal_number_of_inliers=7 expected_transformation="+transType);
+         run("Extract SIFT Correspondences", "source_image=targetRef target_image=sourceRef initial_gaussian_blur=1.60    steps_per_scale_octave=3 minimum_image_size=64 maximum_image_size=1024 feature_descriptor_size=4 feature_descriptor_orientation_bins=8 closest/   next_closest_ratio=0.92 filter maximal_alignment_error=25 minimal_inlier_ratio=0.05 minimal_number_of_inliers=7 expected_transformation="+transType);
+         selectWindow("targetRef");
          if (selectionType() == 10) {
             noPoints = false;
          }
          trys = trys + 1;
       }
+
          // Register the images
       if (!noPoints) {
+         selectWindow("targetRef");
+         selectWindow(targetImage);
+         run("Restore Selection");
+         selectWindow("sourceRef");        
+         selectWindow(sourceImage);
+         run("Restore Selection");
+         
          run("Landmark Correspondences", "source_image="+sourceImage+" template_image="+targetImage+" transformation_method=[Moving Least Squares (non-linear)] alpha=1 mesh_resolution=32 transformation_class="+transType+" interpolate");
          print(logFile, "Images "+image1+" and "+image2+" registered using SIFT and landmark correspondences and "+transType+" transformation");
          selectWindow("Transformed"+sourceImage);
-         run("Duplicate...", "title=tempImage.tif");
+         run("Duplicate...", "title=[Registered Source Image]");
       } else if (method == "Try SIFT") {
          noPoints = true;  // no correspondence points created
          print("No points generated for landmark correspondence - trying bUnwarpJ");
@@ -125,20 +176,22 @@ while (list[i] != "end") {
       run("Stack to Images");
       selectWindow("Registered Source Image");
       run("Duplicate...", "title=Transformed"+sourceImage);
-      selectWindow("Registered Source Image");
+      //selectWindow("Registered Source Image");
    }
    if (continue) {
       // Set cropping parameters
       // Convert image to 8-bit
+      selectWindow("Registered Source Image");
       run("8-bit");
       // This creates a selection rectangle of the entire image
+      selectWindow("Registered Source Image");
       run("Select All");
       // Get coordinates from the selection bounding box
       getSelectionBounds(xmin, ymin, width, height);
       // Set variables for clipping
       xmax = width + xmin - 1;
       ymax = height + ymin - 1;
-      imageHeight = getHeight;
+      imageHeight = getHeight();
       imageWidth = getWidth();
       topHasNoData = true;
       rightHasNoData = true;
