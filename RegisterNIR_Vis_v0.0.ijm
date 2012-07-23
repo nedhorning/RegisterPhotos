@@ -88,6 +88,7 @@ while (list[i] != "end") {
    open(inDirectory+image2);
    targetImage = getTitle();
    outFileBase = File.nameWithoutExtension;
+   noPoints = true;
    
    // Split channels and create similar vis/near-ir pair
    if (enhanceMethod == "target (g-b) source (g+b)") {
